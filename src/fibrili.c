@@ -7,6 +7,7 @@
 #include "deque.h"
 #include "param.h"
 #include "stats.h"
+#include "log.h"
 #include "fibrile.h"
 
 static __thread fibril_t * _restart;
@@ -52,6 +53,8 @@ void schedule(int id, int nprocs, fibril_t * frptr)
     if (id == 0) return;
   }
 
+  size_t steal_begin = LOG_START_STEALING(id);
+  
   while (!_stop) {
     long victim;
     lrand48_r(&_buffer, &victim);
@@ -65,12 +68,15 @@ void schedule(int id, int nprocs, fibril_t * frptr)
 
       DEBUG_DUMP(1, "steal:", (victim, "%d"), (frptr, "%p"));
       STATS_COUNT(N_STEALS, 1);
+      LOG_COUNT_STEAL(id);
       longjmp(frptr, stack_setup(frptr));
     }
 
     /** Force the worker to yield as a penalty for the failed steal. */
     sched_yield();
   }
+
+  LOG_END_STEALING(id, steal_begin);
 
   sync_barrier(nprocs);
 

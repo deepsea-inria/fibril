@@ -5,11 +5,15 @@
 #include "debug.h"
 #include "param.h"
 #include "stats.h"
+#include "log.h"
 
 static pthread_t * _procs;
 static void ** _stacks;
 
 __thread int _tid;
+
+log_t* _logs;
+size_t time_start;
 
 extern void fibrili_init(int id, int nprocs);
 extern void fibrili_exit(int id, int nprocs);
@@ -21,7 +25,7 @@ void * MAIN_STACK_TOP;
 static void * __main(void * id)
 {
   _tid = (int) (intptr_t) id;
-
+  
   fibrili_init(_tid, PARAM_NPROCS);
   return NULL;
 }
@@ -46,6 +50,11 @@ int fibril_rt_init(int n)
 
   _procs = malloc(sizeof(pthread_t [nprocs]));
   _stacks = malloc(sizeof(void * [nprocs]));
+  _logs = malloc(sizeof(log_t [nprocs]));
+
+  for (int i = 0; i < nprocs; ++i) {
+    LOG_INIT(i);
+  }
 
   pthread_attr_t attrs[nprocs];
   int i;
@@ -89,12 +98,15 @@ int fibril_rt_exit()
 
   free(_procs);
   free(_stacks);
+  free(_logs);
 
   STATS_EXPORT(N_STEALS);
   STATS_EXPORT(N_SUSPENSIONS);
   STATS_EXPORT(N_STACKS);
   STATS_EXPORT(N_PAGES);
 
+  LOG_EMIT(PARAM_NPROCS);
+    
   return 0;
 }
 
