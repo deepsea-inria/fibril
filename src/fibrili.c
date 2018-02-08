@@ -81,7 +81,7 @@ void schedule(int id, int nprocs, fibril_t * frptr)
   
   LOG_END_STEALING(id);
   LOG_PUSH_EVENT(id, exit_wait);
-  
+    
   sync_barrier(nprocs);
 
   if (id) pthread_exit(NULL);

@@ -21,6 +21,8 @@ FIBRIL_IF_ENABLED([debug], [Build fibril in debugging mode],
   ])
 FIBRIL_IF_ENABLED([stats], [Enable statistics collection],
   [ AC_DEFINE([FIBRIL_STATS], [1], [Enable statistics collection.]) ])
+FIBRIL_IF_ENABLED([log], [Enable logging collection],
+  [ AC_DEFINE([FIBRIL_LOG], [1], [Enable logging collection.]) ])
 
 # Check for pthreads
 ACX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"

@@ -55,7 +55,6 @@ int fibril_rt_init(int n)
 
   _procs = malloc(sizeof(pthread_t [nprocs]));
   _stacks = malloc(sizeof(void * [nprocs]));
-  _logs = malloc(sizeof(log_t [nprocs]));
 
   fibril_rt_log_init();
 
@@ -113,7 +112,9 @@ int fibril_rt_exit()
   return 0;
 }
 
-void fibril_rt_log_stats_reset() {
+#if defined(FIBRIL_LOG)
+
+void fibril_rt_log_stats_init() {
   int nprocs = PARAM_NPROCS;
   for (int i = 0; i < nprocs; i++) {
     _logs[i].nb_steals = 0;
@@ -121,20 +122,25 @@ void fibril_rt_log_stats_reset() {
     
   }
   log_stats_time_start = fibril_time_since(0);
+}
+
+void fibril_rt_log_stats_reset() {
+  fibril_rt_log_stats_init();
   LOG_PUSH_EVENT(0, enter_algo);
 }
 
 void fibril_rt_log_init() {
-  int initial_events_capacity = 1024;
   int nprocs = PARAM_NPROCS;
+  _logs = malloc(sizeof(log_t [nprocs]));
+  int initial_events_capacity = 1024;
   for (int i = 0; i < nprocs; i++) {
     _logs[i].events = malloc(sizeof(log_event_t [initial_events_capacity]));
     _logs[i].nb_events = 0;
     _logs[i].events_capacity = initial_events_capacity;
   }
   log_time_start = fibril_time_since(0);
-  fibril_rt_log_stats_reset();
   LOG_PUSH_EVENT(0, enter_launch);
+  fibril_rt_log_stats_init();
 }
 
 int compare_log_events(const void* a, const void* b) {
@@ -179,14 +185,13 @@ void fibril_log_emit() {
       size_t nb_events_i = _logs[i].nb_events;
       log_event_t* events_i = _logs[i].events;
       for (size_t j = 0; j < nb_events_i; ++j) {
-	events[k++] = events_i[j];
+        events[k++] = events_i[j];
       }
     }
     qsort(events, total_nb_events, sizeof(log_event_t), compare_log_events);
     FILE* fp;
     fp = fopen("LOG_BIN", "w");
     for (size_t i = 0; i < total_nb_events; ++i) {
-      print_event(events[i]);
       int64_t t = (int64_t)events[i].timestamp;
       fwrite(&t, sizeof(int64_t), 1, fp);
       t = (int64_t)events[i].worker_id;
@@ -203,3 +208,11 @@ void fibril_log_emit() {
     }
   }
 }
+
+#else
+
+void fibril_rt_log_init() { }
+void fibril_rt_log_stats_reset() { }
+void fibril_log_emit() { }
+
+#endif

@@ -47,15 +47,6 @@ size_t static inline fibril_time_since(size_t val)
 
 extern void fibril_rt_log_stats_reset();
 
-#define LOG_COUNT_STEAL(id) \
-  _logs[id].nb_steals++; \
-
-#define LOG_START_STEALING(id) \
-  _logs[id].start_stealing = fibril_time_since(0); \
-
-#define LOG_END_STEALING(id) \
-  _logs[id].time_stealing += fibril_time_since(_logs[id].start_stealing); \
-
 static inline
 const char* string_of_event_tag(log_event_tag_t t) {
   switch (t) {
@@ -97,7 +88,27 @@ void static inline fibril_log_push_event(int id, log_event_tag_t tag) {
   events[idx] = e;
 }
 
+#if defined(FIBRIL_LOG)
+
+#define LOG_COUNT_STEAL(id) \
+  _logs[id].nb_steals++; \
+
+#define LOG_START_STEALING(id) \
+  _logs[id].start_stealing = fibril_time_since(0); \
+
+#define LOG_END_STEALING(id) \
+  _logs[id].time_stealing += fibril_time_since(_logs[id].start_stealing); \
+
 #define LOG_PUSH_EVENT(id, tag) \
   fibril_log_push_event(id, tag); \
+
+#else
+
+#define LOG_COUNT_STEAL(...)
+#define LOG_START_STEALING(...)
+#define LOG_END_STEALING(...)
+#define LOG_PUSH_EVENT(...)
+
+#endif
 
 #endif /* end of include guard: LOG_H */
