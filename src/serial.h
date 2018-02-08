@@ -12,5 +12,6 @@
 #define fibril_rt_init(n)
 #define fibril_rt_exit()
 #define fibril_rt_nprocs(n) (1)
+#define fibril_rt_log_stats_reset()
 
 #endif /* end of include guard: FIBRIL_SERIAL_H */

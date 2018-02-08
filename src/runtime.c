@@ -15,6 +15,9 @@ __thread int _tid;
 log_t* _logs;
 size_t time_start;
 
+void fibril_rt_log_init();
+void fibril_log_emit();
+
 extern void fibrili_init(int id, int nprocs);
 extern void fibrili_exit(int id, int nprocs);
 
@@ -52,9 +55,7 @@ int fibril_rt_init(int n)
   _stacks = malloc(sizeof(void * [nprocs]));
   _logs = malloc(sizeof(log_t [nprocs]));
 
-  for (int i = 0; i < nprocs; ++i) {
-    LOG_INIT(i);
-  }
+  fibril_rt_log_init();
 
   pthread_attr_t attrs[nprocs];
   int i;
@@ -96,6 +97,8 @@ int fibril_rt_exit()
     free(_stacks[i]);
   }
 
+  fibril_log_emit(PARAM_NPROCS);
+
   free(_procs);
   free(_stacks);
   free(_logs);
@@ -104,9 +107,44 @@ int fibril_rt_exit()
   STATS_EXPORT(N_SUSPENSIONS);
   STATS_EXPORT(N_STACKS);
   STATS_EXPORT(N_PAGES);
-
-  LOG_EMIT(PARAM_NPROCS);
     
   return 0;
 }
 
+void fibril_rt_log_stats_reset() {
+  int nprocs = PARAM_NPROCS;
+  for (int i = 0; i < nprocs; i++) {
+    _logs[i].nb_steals = 0;
+    _logs[i].time_stealing = 0;
+  }
+  time_start = fibril_time_since(0);
+}
+
+void fibril_rt_log_init() {
+  fibril_rt_log_stats_reset();
+}
+
+void fibril_log_emit() {
+  int nprocs = PARAM_NPROCS;
+  {
+    int nb_steals = 0;
+    for (int i = 0; i < nprocs; ++i) {
+      nb_steals += _logs[i].nb_steals;
+    }
+    printf("nb_steals\t%d\n", nb_steals);
+  }
+  {
+    size_t total_idle_time_usec = 0;
+    for (int i = 0; i < nprocs; ++i) {
+      total_idle_time_usec += _logs[i].time_stealing;
+    }
+    double total_idle_time_sec = total_idle_time_usec / 1000000.0;
+    printf("total_idle_time\t%f\n", total_idle_time_sec);
+    double total_time_sec = fibril_time_since(time_start) / 1000000.0;
+    printf("launch_duration\t%f\n", total_time_sec);
+    double cumulative_time = total_time_sec * nprocs;
+    double relative_idle = total_idle_time_sec / cumulative_time;
+    double utilization = 1.0 - relative_idle;
+    printf("utilization\t%f\n", utilization);
+  }
+}

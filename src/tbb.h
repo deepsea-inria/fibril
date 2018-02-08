@@ -33,4 +33,6 @@ tbb::task_scheduler_init _fibril_rt_init(PARAM_NPROCS)
 
 #define fibril_rt_exit()
 
+#define fibril_rt_log_stats_reset()
+
 #endif /* end of include guard: TBB_H */

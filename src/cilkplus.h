@@ -14,5 +14,6 @@
 #define fibril_rt_init(n) (__cilkrts_set_param("stack size", "0x800000"))
 #define fibril_rt_exit() (__cilkrts_end_cilk())
 #define fibril_rt_nprocs() (__cilkrts_get_nworkers())
+#define fibril_rt_log_stats_reset()
 
 #endif /* end of include guard: CILKPLUS_H */
