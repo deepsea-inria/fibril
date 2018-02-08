@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <stdio.h>
 #include "safe.h"
 #include "debug.h"
 #include "param.h"
@@ -13,7 +14,8 @@ static void ** _stacks;
 __thread int _tid;
 
 log_t* _logs;
-size_t time_start;
+size_t log_stats_time_start;
+size_t log_time_start;
 
 void fibril_rt_log_init();
 void fibril_log_emit();
@@ -116,35 +118,88 @@ void fibril_rt_log_stats_reset() {
   for (int i = 0; i < nprocs; i++) {
     _logs[i].nb_steals = 0;
     _logs[i].time_stealing = 0;
+    
   }
-  time_start = fibril_time_since(0);
+  log_stats_time_start = fibril_time_since(0);
+  LOG_PUSH_EVENT(0, enter_algo);
 }
 
 void fibril_rt_log_init() {
+  int initial_events_capacity = 1024;
+  int nprocs = PARAM_NPROCS;
+  for (int i = 0; i < nprocs; i++) {
+    _logs[i].events = malloc(sizeof(log_event_t [initial_events_capacity]));
+    _logs[i].nb_events = 0;
+    _logs[i].events_capacity = initial_events_capacity;
+  }
+  log_time_start = fibril_time_since(0);
   fibril_rt_log_stats_reset();
+  LOG_PUSH_EVENT(0, enter_launch);
+}
+
+int compare_log_events(const void* a, const void* b) {
+  const log_event_t* ea = (const log_event_t*)a;
+  const log_event_t* eb = (const log_event_t*)b;
+  return (ea->timestamp > eb->timestamp) - (ea->timestamp < eb->timestamp);
 }
 
 void fibril_log_emit() {
   int nprocs = PARAM_NPROCS;
-  {
+  { // report nb steals
     int nb_steals = 0;
     for (int i = 0; i < nprocs; ++i) {
       nb_steals += _logs[i].nb_steals;
     }
     printf("nb_steals\t%d\n", nb_steals);
   }
-  {
+  { // report total idle time, launch duration, and utilization
     size_t total_idle_time_usec = 0;
     for (int i = 0; i < nprocs; ++i) {
       total_idle_time_usec += _logs[i].time_stealing;
     }
     double total_idle_time_sec = total_idle_time_usec / 1000000.0;
     printf("total_idle_time\t%f\n", total_idle_time_sec);
-    double total_time_sec = fibril_time_since(time_start) / 1000000.0;
+    double total_time_sec = fibril_time_since(log_stats_time_start) / 1000000.0;
     printf("launch_duration\t%f\n", total_time_sec);
     double cumulative_time = total_time_sec * nprocs;
     double relative_idle = total_idle_time_sec / cumulative_time;
     double utilization = 1.0 - relative_idle;
     printf("utilization\t%f\n", utilization);
+  }
+  { // emit logging data
+    LOG_PUSH_EVENT(0, exit_algo);
+    LOG_PUSH_EVENT(0, exit_launch);
+    size_t total_nb_events = 0;
+    for (int i = 0; i < nprocs; ++i) {
+      total_nb_events += _logs[i].nb_events;
+    }
+    log_event_t* events = malloc(sizeof(log_event_t [total_nb_events]));
+    size_t k = 0;
+    for (int i = 0; i < nprocs; ++i) {
+      size_t nb_events_i = _logs[i].nb_events;
+      log_event_t* events_i = _logs[i].events;
+      for (size_t j = 0; j < nb_events_i; ++j) {
+	events[k++] = events_i[j];
+      }
+    }
+    qsort(events, total_nb_events, sizeof(log_event_t), compare_log_events);
+    FILE* fp;
+    fp = fopen("LOG_BIN", "w");
+    for (size_t i = 0; i < total_nb_events; ++i) {
+      print_event(events[i]);
+      int64_t t = (int64_t)events[i].timestamp;
+      fwrite(&t, sizeof(int64_t), 1, fp);
+      t = (int64_t)events[i].worker_id;
+      fwrite(&t, sizeof(int64_t), 1, fp);
+      t = (int64_t)events[i].tag;
+      fwrite(&t, sizeof(int64_t), 1, fp);
+    }
+    fclose(fp);
+    free(events);
+    for (int i = 0; i < nprocs; ++i) {
+      log_event_t* events_i = _logs[i].events;
+      _logs[i].events = NULL;
+      free(events_i);
+    }
   }
 }
