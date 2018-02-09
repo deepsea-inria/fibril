@@ -23,13 +23,19 @@ typedef struct {
   log_event_tag_t tag;
 } log_event_t;
 
+#define BLOCK_CAPACITY 1024
+
+typedef struct struct log_block_s {
+  log_event_t hd[BLOCK_CAPACITY];
+  int nb_events;
+  struct log_block_s* tl;
+} log_block_t;
+
 typedef struct {
   char __padding1[128];
   int nb_steals;
   size_t time_stealing;
-  log_event_t* events;
-  size_t nb_events;
-  size_t events_capacity;
+  log_block_t* events;
   size_t start_stealing;
   char __padding2[128];
 } log_t;
@@ -65,27 +71,26 @@ void static inline print_event(log_event_t e) {
   printf("%f\t%d\t%s\n", e.timestamp, e.worker_id, string_of_event_tag(e.tag));
 }
 
+log_block_t* static inline create_block(log_block_t* tl) {
+  log_block_t* b = malloc(sizeof(log_block_t [1]));
+  b->nb_events = 0;
+  b->tl = tl;
+  return b;
+}
+
 void static inline fibril_log_push_event(int id, log_event_tag_t tag) {
   log_event_t e;
   e.timestamp = fibril_time_since(log_time_start);
   e.worker_id = id;
   e.tag = tag;
   log_t* log_i = &_logs[id];
-  size_t old_nb_events = log_i->nb_events;
-  size_t idx = old_nb_events;
-  size_t new_nb_events = ++log_i->nb_events;
-  size_t old_events_capacity = log_i->events_capacity;
-  if (new_nb_events > old_events_capacity) {
-    size_t new_events_capacity = old_events_capacity * 2;
-    log_event_t* old_events = log_i->events;
-    log_event_t* new_events = malloc(sizeof(log_event_t [new_events_capacity]));
-    memcpy(new_events, old_events, sizeof(log_event_t) * old_nb_events);
-    log_i->events = new_events;
-    log_i->events_capacity = new_events_capacity;
-    free(old_events);
+  log_block_t* events = log_i->events;
+  if (events->nb_events == BLOCK_CAPACITY) {
+    events = create_block(events);
+    log_i->events = events;
   }
-  log_event_t* events = log_i->events;
-  events[idx] = e;
+  int i = events->nb_events++;
+  events->hd[i] = e;
 }
 
 #if defined(FIBRIL_LOG)

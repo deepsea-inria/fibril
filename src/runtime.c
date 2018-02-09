@@ -132,11 +132,8 @@ void fibril_rt_log_stats_reset() {
 void fibril_rt_log_init() {
   int nprocs = PARAM_NPROCS;
   _logs = malloc(sizeof(log_t [nprocs]));
-  int initial_events_capacity = 1024;
   for (int i = 0; i < nprocs; i++) {
-    _logs[i].events = malloc(sizeof(log_event_t [initial_events_capacity]));
-    _logs[i].nb_events = 0;
-    _logs[i].events_capacity = initial_events_capacity;
+    _logs[i].events = create_block(NULL);
   }
   log_time_start = fibril_time_since(0);
   LOG_PUSH_EVENT(0, enter_launch);
@@ -177,15 +174,24 @@ void fibril_log_emit() {
     LOG_PUSH_EVENT(0, exit_launch);
     size_t total_nb_events = 0;
     for (int i = 0; i < nprocs; ++i) {
-      total_nb_events += _logs[i].nb_events;
+      log_block_t* block = _logs[i].events;
+      while (block != NULL) {
+	total_nb_events += block->nb_events;
+	block = block->tl;
+      }
     }
     log_event_t* events = malloc(sizeof(log_event_t [total_nb_events]));
     size_t k = 0;
     for (int i = 0; i < nprocs; ++i) {
-      size_t nb_events_i = _logs[i].nb_events;
-      log_event_t* events_i = _logs[i].events;
-      for (size_t j = 0; j < nb_events_i; ++j) {
-        events[k++] = events_i[j];
+      log_block_t* block = _logs[i].events;
+      _logs[i].events = NULL;
+      while (block != NULL) {
+	int nb_events = block->nb_events;
+	memcpy(&events[k], &(block->hd[0]), sizeof(log_event_t) * nb_events);
+	k += nb_events;
+	log_block_t* tl = block->tl;
+	free(block);
+	block = tl;
       }
     }
     qsort(events, total_nb_events, sizeof(log_event_t), compare_log_events);
@@ -201,11 +207,6 @@ void fibril_log_emit() {
     }
     fclose(fp);
     free(events);
-    for (int i = 0; i < nprocs; ++i) {
-      log_event_t* events_i = _logs[i].events;
-      _logs[i].events = NULL;
-      free(events_i);
-    }
   }
 }
 
