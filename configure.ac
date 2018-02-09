@@ -31,6 +31,13 @@ ACX_PTHREAD([LIBS="$PTHREAD_LIBS $LIBS"
 
 # Checks for libraries.
 
+FIBRIL_IF_ENABLED([hwloc], [Enable hwloc],
+  [
+    AC_DEFINE([FIBRIL_USE_HWLOC], [1], [Enable hwloc.])
+    LIBS="`pkg-config --cflags hwloc` $LIBS"
+    CFLAGS="$CFLAGS `pkg-config --libs hwloc`"
+  ])
+
 # Checks for header files.
 AC_CHECK_HEADERS([stddef.h stdint.h stdlib.h unistd.h pthread.h])
 

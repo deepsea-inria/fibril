@@ -8,6 +8,11 @@
 #include "stats.h"
 #include "log.h"
 
+#ifdef FIBRIL_USE_HWLOC
+#include <hwloc.h>
+hwloc_topology_t topology;
+#endif
+
 static pthread_t * _procs;
 static void ** _stacks;
 
@@ -20,6 +25,41 @@ size_t log_time_start;
 void fibril_rt_log_init();
 void fibril_log_emit();
 
+#if defined(FIBRIL_USE_HWLOC)
+
+void fibril_hwloc_init() {
+  hwloc_topology_init(&topology);
+  hwloc_topology_load(topology);
+}
+
+void fibril_hwloc_worker_init(int id) {
+  // bind worker thread with identifier id to core number id
+  int nb_cores = hwloc_get_nbobjs_by_type(topology, HWLOC_OBJ_CORE);
+  if (id >= nb_cores) {
+    return;
+  }
+  int flags = HWLOC_CPUBIND_STRICT | HWLOC_CPUBIND_THREAD;
+  int core_depth = hwloc_get_type_or_below_depth(topology, HWLOC_OBJ_CORE);
+  hwloc_obj_t core_obj = hwloc_get_obj_by_depth(topology, core_depth, id);
+  hwloc_cpuset_t cpuset = hwloc_bitmap_dup(core_obj->cpuset);
+  if (hwloc_set_cpubind(topology, cpuset, flags)) {
+    char *str;
+    int error = errno;
+    hwloc_bitmap_asprintf (&str, cpuset);
+    printf ("Couldn't bind to cpuset %s: %s\n", str, strerror(error));
+    free (str);
+    return;
+  }
+  free(cpuset);
+}
+
+#else
+
+void fibril_hwloc_init() { }
+void fibril_hwloc_worker_init(int id) { }
+
+#endif
+
 extern void fibrili_init(int id, int nprocs);
 extern void fibrili_exit(int id, int nprocs);
 
@@ -30,6 +70,8 @@ void * MAIN_STACK_TOP;
 static void * __main(void * id)
 {
   _tid = (int) (intptr_t) id;
+  
+  fibril_hwloc_worker_init(_tid);
   
   fibrili_init(_tid, PARAM_NPROCS);
   return NULL;
@@ -50,6 +92,8 @@ int fibril_rt_init(int n)
 
   int nprocs = PARAM_NPROCS;
   if (nprocs <= 0) return -1;
+
+  fibril_hwloc_init();
 
   size_t stacksize = PARAM_STACK_SIZE;
 
