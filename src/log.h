@@ -25,7 +25,7 @@ typedef struct {
 
 #define BLOCK_CAPACITY 1024
 
-typedef struct struct log_block_s {
+typedef struct log_block_s {
   log_event_t hd[BLOCK_CAPACITY];
   int nb_events;
   struct log_block_s* tl;
@@ -71,7 +71,8 @@ void static inline print_event(log_event_t e) {
   printf("%f\t%d\t%s\n", e.timestamp, e.worker_id, string_of_event_tag(e.tag));
 }
 
-log_block_t* static inline create_block(log_block_t* tl) {
+static inline
+log_block_t* create_block(log_block_t* tl) {
   log_block_t* b = malloc(sizeof(log_block_t [1]));
   b->nb_events = 0;
   b->tl = tl;
