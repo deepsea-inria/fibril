@@ -176,8 +176,8 @@ void fibril_log_emit() {
     for (int i = 0; i < nprocs; ++i) {
       log_block_t* block = _logs[i].events;
       while (block != NULL) {
-	total_nb_events += block->nb_events;
-	block = block->tl;
+        total_nb_events += block->nb_events;
+        block = block->tl;
       }
     }
     log_event_t* events = malloc(sizeof(log_event_t [total_nb_events]));
@@ -186,12 +186,12 @@ void fibril_log_emit() {
       log_block_t* block = _logs[i].events;
       _logs[i].events = NULL;
       while (block != NULL) {
-	int nb_events = block->nb_events;
-	memcpy(&events[k], &(block->hd[0]), sizeof(log_event_t) * nb_events);
-	k += nb_events;
-	log_block_t* tl = block->tl;
-	free(block);
-	block = tl;
+        int nb_events = block->nb_events;
+        memcpy(&events[k], &(block->hd[0]), sizeof(log_event_t) * nb_events);
+        k += nb_events;
+        log_block_t* tl = block->tl;
+        free(block);
+        block = tl;
       }
     }
     qsort(events, total_nb_events, sizeof(log_event_t), compare_log_events);
